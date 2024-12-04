@@ -15,5 +15,14 @@
     "idf.toolsPathWin": "D:\\Espressif",
     "idf.flashType": "UART",
     "idf.portWin": "COM3",
-    "sarif-viewer.connectToGithubCodeScanning": "off"
+    "sarif-viewer.connectToGithubCodeScanning": "off",
+    "files.associations": {
+        "string.h": "c",
+        "event_groups.h": "c",
+        "esp_wifi.h": "c",
+        "esp_event.h": "c",
+        "task.h": "c",
+        "esp_log.h": "c",
+        "nvs.h": "c"
+    }
 }
