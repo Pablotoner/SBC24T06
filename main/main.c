@@ -61,24 +61,25 @@ void app_main(void) {
     while (1) {
         //Lectura MIC
         sumaRMS = 0;
-        freq = 500;
+        freq = 100;
         for(int j = 0; j < freq; j++) {
             spi_device_transmit(spiMIC, &u);  // Realiza la transacción
             mic_vol = ((uint16_t)dataMic[0] << 8 | (uint16_t)dataMic[1] );
             mic_vol = abs(mic_vol - 2048);
-            printf("Mic vol: %d\n", mic_vol);
+            //printf("Mic vol: %d\n", mic_vol);
             sumaRMS = sumaRMS + pow(mic_vol, 2);
-            vTaskDelay(pdMS_TO_TICKS(100));
+            //vTaskDelay(pdMS_TO_TICKS(100));
         }
         //Hacer RMS
         RMS = sqrt(sumaRMS/ freq);
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(10));
 
         //Lectura ALS
         spi_device_transmit(spiALS, &t);  // Realiza la transacción
         als_value = (((data[0] << 8) | data[1]) >> 4);  // Valor de luz
-        decibelios = 20 * log10f(RMS); //cambiar y hacer que 96dB? sea el maximo
-        vTaskDelay(pdMS_TO_TICKS(100));
+        decibelios = (20 * log10f(RMS/2047)) + 94
+        ; //cambiar y hacer que 96dB? sea el maximo
+        vTaskDelay(pdMS_TO_TICKS(10));
         printf("ALS Value: %u MIC dB: %f RMS Mic: %f\n", als_value, decibelios, RMS);
     }
 }
