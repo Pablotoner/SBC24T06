@@ -45,12 +45,10 @@ void app_main(void) {
     uint8_t dataMic[2];
     uint16_t als_value;
     uint16_t mic_vol;
-    int suma = 0;
-    int muestras = 10;
-
-    float media = 0.0;
-    int acumulado = 0;
     float decibelios = 0.0;
+    float RMS;
+    int sumaRMS;
+    int freq;
     spi_transaction_t t = {
             .length = 16,           // Lectura de 16 bits
             .rx_buffer = data
@@ -62,31 +60,25 @@ void app_main(void) {
     };
     while (1) {
         //Lectura MIC
-        /*media = 0;
-        for(int i = 0; i < muestras; i++) {
-            if (mic_vol > 2040) {
-                mic_vol -= 2048;
-            }else{
-                mic_vol = 2048 - mic_vol;
-            }
+        sumaRMS = 0;
+        freq = 500;
+        for(int j = 0; j < freq; j++) {
             spi_device_transmit(spiMIC, &u);  // Realiza la transacción
             mic_vol = ((uint16_t)dataMic[0] << 8 | (uint16_t)dataMic[1] );
-            mic_vol = pow(mic_vol, 2);
-            suma = suma + mic_vol;
+            mic_vol = abs(mic_vol - 2048);
+            printf("Mic vol: %d\n", mic_vol);
+            sumaRMS = sumaRMS + pow(mic_vol, 2);
+            vTaskDelay(pdMS_TO_TICKS(100));
         }
-        media = suma / muestras;
-        media = sqrt(media) / (20*(10e-6));
-
-        suma = 0;*/
-        spi_device_transmit(spiMIC, &u);  // Realiza la transacción
-        mic_vol = ((uint16_t)dataMic[0] << 8 | (uint16_t)dataMic[1] );
+        //Hacer RMS
+        RMS = sqrt(sumaRMS/ freq);
         vTaskDelay(pdMS_TO_TICKS(100));
 
         //Lectura ALS
         spi_device_transmit(spiALS, &t);  // Realiza la transacción
         als_value = (((data[0] << 8) | data[1]) >> 4);  // Valor de luz
-        decibelios = 20 * log10f(mic_vol);
+        decibelios = 20 * log10f(RMS); //cambiar y hacer que 96dB? sea el maximo
         vTaskDelay(pdMS_TO_TICKS(100));
-        printf("ALS Value: %u MIC dB: %f\n", als_value, decibelios);
+        printf("ALS Value: %u MIC dB: %f RMS Mic: %f\n", als_value, decibelios, RMS);
     }
 }
