@@ -626,9 +626,18 @@ void app_main(void) {
     }
 
     //sincronizacion de hora con sntp
-    
     esp_sntp_config_t configSNTP = ESP_NETIF_SNTP_DEFAULT_CONFIG("hora.rediris.es");
     esp_netif_sntp_init(&configSNTP);
+    int retry = 0;
+    const int retry_count = 15;
+
+    //ajusta huso horarioç
+    setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 1);  // Horario de Madrid con cambio de hora
+    tzset();  // Aplica el cambio de zona horaria
+
+    while (esp_netif_sntp_sync_wait(2000 / portTICK_PERIOD_MS) == ESP_ERR_TIMEOUT && ++retry < retry_count) {
+        ESP_LOGI(TAG, "Intentando sincronizar hora... (%d/%d)", retry, retry_count);
+    }
 
     char strftime_buf[64];
     time_t now;
@@ -636,7 +645,7 @@ void app_main(void) {
     time(&now);
     localtime_r(&now, &timeinfo);
     strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
-    ESP_LOGI(TAG, "The current date/time in ESPAÑAS is: %s", strftime_buf);
+    ESP_LOGI(TAG, "La hora obtenida del servidor es: %s", strftime_buf);
 
     //curl -v -X POST http://demo.thingsboard.io/api/v1/5XwlQoQhVjWRRVQG4Bo2/telemetry --header Content-Type:application/json --data "{temperature:25}
     esp_mqtt_client_handle_t cliente = mqtt_app_start();
