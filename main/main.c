@@ -22,6 +22,37 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
+#include "cJSON.h"
+#include "esp_adc_cal.h"
+#include "driver/adc.h"
+#include "esp_http_client.h"
+#include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+#include "esp_wifi.h"
+#include "esp_system.h"
+#include "nvs_flash.h"
+#include "esp_event.h"
+#include "esp_netif.h"
+#include "cJSON.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/semphr.h"
+#include "freertos/queue.h"
+#include "esp_adc_cal.h"
+#include "driver/adc.h"
+#include "lwip/sockets.h"
+#include "lwip/dns.h"
+#include "lwip/netdb.h"
+#include "esp_http_client.h"
+#include "esp_log.h"
+#include "mqtt_client.h"
+#include <time.h>
+#include "esp_netif_sntp.h"
+#include "lwip/ip_addr.h"
+#include "esp_sntp.h"
+#define TAG "General"
 
 //defines SPI
 #define PIN_NUM_MISO 19
@@ -40,7 +71,7 @@
 
 /* AP Configuration */
 #define EXAMPLE_ESP_WIFI_AP_SSID            "ESP3206"
-#define EXAMPLE_ESP_WIFI_AP_PASSWD          "myssid"
+#define EXAMPLE_ESP_WIFI_AP_PASSWD          "1234567890"
 #define EXAMPLE_ESP_WIFI_CHANNEL            1
 #define EXAMPLE_MAX_STA_CONN                4
 
@@ -321,13 +352,13 @@ esp_err_t index_post_handler(httpd_req_t *req)
         
         return ESP_OK;
     }
-    if (httpd_query_key_value((char *) buffer, "token", (char *) token, 64) == ESP_ERR_NOT_FOUND) {
-        httpd_resp_set_status(req, "400");
-        httpd_resp_send(req, "Token is required", -1);
+    // if (httpd_query_key_value((char *) buffer, "token", (char *) token, 64) == ESP_ERR_NOT_FOUND) {
+    //     httpd_resp_set_status(req, "400");
+    //     httpd_resp_send(req, "Token is required", -1);
 
         
-        return ESP_OK;
-    }
+    //     return ESP_OK;
+    // }
  
     if (strlen((char *) wifi_sta_config.sta.ssid) < 1) {
         httpd_resp_set_status(req, "400");
@@ -375,6 +406,8 @@ esp_err_t index_post_handler(httpd_req_t *req)
  
     ESP_LOGI(TAG_STA, "SSID: %s, Pass: %s", wifi_sta_config.sta.ssid, wifi_sta_config.sta.password);
     httpd_resp_send(req, "<h1>OK</h1>", -1);
+    vTaskDelay(10);
+    esp_restart();
  
     //ESP_ERROR_CHECK(esp_wifi_restore());
     //ESP_ERROR_CHECK(esp_wifi_init(&cfg));
@@ -419,6 +452,12 @@ httpd_handle_t setup_server(void)
     return server;
 }
 
+int64_t xx_time_get_time() {
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	return (tv.tv_sec * 1000LL + (tv.tv_usec / 1000LL));
+}
+
 float medidaMic (spi_device_handle_t spiMIC) {
     //Lectura MIC
     int sumaRMS = 0;
@@ -432,15 +471,17 @@ float medidaMic (spi_device_handle_t spiMIC) {
         .length = 16,           // Lectura de 16 bits
         .rx_buffer = dataMic
     };
-
+    
+    //printf("Antes de medir %lld\n", xx_time_get_time());
     for(int j = 0; j < freq; j++) {
         spi_device_transmit(spiMIC, &u);  // Realiza la transacción
         mic_vol = ((uint16_t)dataMic[0] << 8 | (uint16_t)dataMic[1] );
         mic_vol = abs(mic_vol - 2048);
         //printf("Mic vol: %d\n", mic_vol);
         sumaRMS = sumaRMS + pow(mic_vol, 2);
-        vTaskDelay(pdMS_TO_TICKS((1/freq)*1000)); //delay para hacer freq medidas en 1 segundo
+        vTaskDelay(pdMS_TO_TICKS(500 / freq)); //delay para hacer freq medidas en 1 segundo
     }
+    //printf("Desoues de medir %lld\n", xx_time_get_time());
     //Hacer RMS
     RMS = sqrt(sumaRMS/ freq);
     decibelios = (20 * log10f(RMS/2047)) + 94; //+94 por ser el valor de referencia de mediciones de sonido
@@ -462,7 +503,10 @@ uint16_t medidaALS (spi_device_handle_t spiALS) {
     return als_value;
 }
 
+#define SPIdebug
 void app_main(void) {
+
+    #ifdef SPIdebug
     //inicializacion de bus SPI
     spi_bus_config_t buscfg = {
         .mosi_io_num = -1,          // No se usa MOSI
@@ -492,7 +536,153 @@ void app_main(void) {
     spi_bus_add_device(SPI2_HOST, &devcfgALS, &spiALS);
     spi_bus_add_device(SPI2_HOST, &devcfgMIC, &spiMIC);
 
-    while (1) {
-        printf("ALS Value: %u MIC dB: %f \n", medidaALS(spiALS), medidaMic(spiMIC));
+    #endif
+
+    ESP_LOGI(TAG, "[APP] Startup..");
+    ESP_LOGI(TAG, "[APP] Free memory: %" PRIu32 " bytes", esp_get_free_heap_size());
+    ESP_LOGI(TAG, "[APP] IDF version: %s", esp_get_idf_version());
+
+    esp_log_level_set("*", ESP_LOG_INFO);
+    esp_log_level_set("mqtt_client", ESP_LOG_VERBOSE);
+    esp_log_level_set("mqtt_example", ESP_LOG_VERBOSE);
+    esp_log_level_set("transport_base", ESP_LOG_VERBOSE);
+    esp_log_level_set("esp-tls", ESP_LOG_VERBOSE);
+    esp_log_level_set("transport", ESP_LOG_VERBOSE);
+    esp_log_level_set("outbox", ESP_LOG_VERBOSE);
+
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+
+        /* Initialize event group */
+    s_wifi_event_group = xEventGroupCreate();
+
+    /* Register Event handler */
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
+                    ESP_EVENT_ANY_ID,
+                    &wifi_event_handler,
+                    NULL,
+                    NULL));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
+                    IP_EVENT_STA_GOT_IP,
+                    &wifi_event_handler,
+                    NULL,
+                    NULL));
+
+    /*Initialize WiFi */
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
+
+       /* Initialize AP */
+    ESP_LOGI(TAG_AP, "ESP_WIFI_MODE_AP");
+    esp_netif_t *esp_netif_ap = wifi_init_softap();
+       /* Initialize STA */
+    ESP_LOGI(TAG_STA, "ESP_WIFI_MODE_STA");
+    esp_netif_t *esp_netif_sta = wifi_init_sta();
+
+    setup_server();
+
+        /* Start WiFi */
+    ESP_ERROR_CHECK(esp_wifi_start());
+
+
+         /*
+     * Wait until either the connection is established (WIFI_CONNECTED_BIT) or
+     * connection failed for the maximum number of re-tries (WIFI_FAIL_BIT).
+     * The bits are set by event_handler() (see above)
+     */
+    EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
+                                           WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
+                                           pdFALSE,
+                                           pdFALSE,
+                                           portMAX_DELAY);
+
+    /* xEventGroupWaitBits() returns the bits before the call returned,
+     * hence we can test which event actually happened. */
+    if (bits & WIFI_CONNECTED_BIT) {
+        ESP_LOGI(TAG_STA, "connected to ap SSID:%s password:%s",
+                 parsedssid, parsepassword);
+    } else if (bits & WIFI_FAIL_BIT) {
+        ESP_LOGI(TAG_STA, "Failed to connect to SSID:%s, password:%s",
+                 parsedssid, parsepassword);
+    } else {
+        ESP_LOGE(TAG_STA, "UNEXPECTED EVENT");
+        
+    }
+
+        /* Set sta as the default interface */
+    esp_netif_set_default_netif(esp_netif_sta);
+
+    if (esp_netif_napt_enable(esp_netif_ap) != ESP_OK) {
+        ESP_LOGE(TAG_STA, "NAPT not enabled on the netif: %p", esp_netif_ap);
+    }
+
+    //sincronizacion de hora con sntp
+    
+    esp_sntp_config_t configSNTP = ESP_NETIF_SNTP_DEFAULT_CONFIG("hora.rediris.es");
+    esp_netif_sntp_init(&configSNTP);
+
+    char strftime_buf[64];
+    time_t now;
+    struct tm timeinfo;
+    time(&now);
+    localtime_r(&now, &timeinfo);
+    strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
+    ESP_LOGI(TAG, "The current date/time in ESPAÑAS is: %s", strftime_buf);
+
+    //curl -v -X POST http://demo.thingsboard.io/api/v1/5XwlQoQhVjWRRVQG4Bo2/telemetry --header Content-Type:application/json --data "{temperature:25}
+    esp_mqtt_client_handle_t cliente = mqtt_app_start();
+    esp_http_client_config_t config = {
+        .url = "http://demo.thingsboard.io/api/v1/VIe067359N1ltcqUpvYz/telemetry",
+        .auth_type = HTTP_AUTH_TYPE_BASIC,
+    };
+
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+    esp_http_client_set_header(client, "Content-Type", "application/json");
+    esp_http_client_set_method(client, HTTP_METHOD_POST);
+    uint16_t ALSvalue;
+    float MICvalue;
+    
+    while(1) {
+
+
+        // Crear json que se quiere enviar al ThingsBoard
+        cJSON *root = cJSON_CreateObject();
+
+        #ifdef SPIdebug
+
+        ALSvalue = medidaALS(spiALS);
+        MICvalue = medidaMic(spiMIC);
+
+        
+        printf("ALS Value: %u MIC dB: %f \n", ALSvalue, MICvalue);
+
+
+        cJSON_AddNumberToObject(root, "ALS", ALSvalue); // En la telemetría de Thingsboard aparecerá key = key y value = 0.336
+        cJSON_AddNumberToObject(root, "MIC", MICvalue);
+
+        #endif
+
+        char *post_data = cJSON_PrintUnformatted(root);
+
+        // Enviar los datos
+        esp_mqtt_client_publish(cliente, "v1/devices/me/telemetry", post_data, 0, 1, 0); // v1/devices/me/telemetry sale de la MQTT Device API Reference de ThingsBoard
+        //vTaskDelay(1000/ portTICK_PERIOD_MS);
+        esp_http_client_set_post_field(client, post_data, strlen(post_data));
+        esp_http_client_perform(client);
+
+        cJSON_Delete(root);
+        // Free is intentional, it's client responsibility to free the result of cJSON_Print
+        free(post_data);
+        //vTaskDelay(50/ portTICK_PERIOD_MS);
+        //cleanup si se sale del bucle
     }
 }

@@ -23,6 +23,8 @@
         "esp_event.h": "c",
         "task.h": "c",
         "esp_log.h": "c",
-        "nvs.h": "c"
+        "nvs.h": "c",
+        "chrono": "c",
+        "ip_addr.h": "c"
     }
 }
