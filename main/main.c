@@ -52,6 +52,8 @@
 #include "esp_netif_sntp.h"
 #include "lwip/ip_addr.h"
 #include "esp_sntp.h"
+#include "esp_sleep.h"
+
 #define TAG "General"
 
 //defines SPI
@@ -504,6 +506,35 @@ uint16_t medidaALS (spi_device_handle_t spiALS) {
 }
 
 #define SPIdebug
+
+void alacama() {
+    // Obtener la hora actual
+    time_t now;
+    struct tm timeinfo;
+    time(&now);
+    localtime_r(&now, &timeinfo);
+    ESP_LOGI(TAG, "Hora actual: %s", asctime(&timeinfo));
+    int64_t time_to_sleep;
+
+    // Configurar la hora para dormir
+    struct tm sleep_timeinfo = timeinfo;
+    sleep_timeinfo.tm_hour = 17;
+    sleep_timeinfo.tm_min = 45;
+    sleep_timeinfo.tm_sec = 0;
+
+    // Convertir la hora configurada a Unix timestamp
+    time_t sleep_time = mktime(&sleep_timeinfo);
+
+    // Calcular el tiempo restante para dormir
+    esp_sleep_enable_timer_wakeup(1000000 * 10);
+    while(1) {
+        printf("wewe");
+        if (sleep_timeinfo.tm_hour >= 18) { 
+            esp_light_sleep_start();
+        }
+    }
+}
+
 void app_main(void) {
 
     #ifdef SPIdebug
@@ -626,7 +657,7 @@ void app_main(void) {
     }
 
     //sincronizacion de hora con sntp
-    esp_sntp_config_t configSNTP = ESP_NETIF_SNTP_DEFAULT_CONFIG("hora.rediris.es");
+    esp_sntp_config_t configSNTP = ESP_NETIF_SNTP_DEFAULT_CONFIG("ntp.i2t.ehu.es");
     esp_netif_sntp_init(&configSNTP);
     int retry = 0;
     const int retry_count = 15;
@@ -667,7 +698,7 @@ void app_main(void) {
         cJSON *root = cJSON_CreateObject();
 
         #ifdef SPIdebug
-
+        alacama();
         ALSvalue = medidaALS(spiALS);
         MICvalue = medidaMic(spiMIC);
 
