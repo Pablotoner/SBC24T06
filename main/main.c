@@ -507,7 +507,7 @@ uint16_t medidaALS (spi_device_handle_t spiALS) {
 
 #define SPIdebug
 
-void alacama() {
+void alacama(void *arg) {
     // Obtener la hora actual
     time_t now;
     struct tm timeinfo;
@@ -526,17 +526,25 @@ void alacama() {
     time_t sleep_time = mktime(&sleep_timeinfo);
 
     // Calcular el tiempo restante para dormir
+    printf("Antes\n");
+    vTaskDelay(1000/portTICK_PERIOD_MS);
     esp_sleep_enable_timer_wakeup(1000000 * 10);
+    printf("despues");
+    vTaskDelay(1000/portTICK_PERIOD_MS);
     while(1) {
-        printf("wewe");
-        if (sleep_timeinfo.tm_hour >= 18) { 
+        if (timeinfo.tm_hour >= 18) {
+            printf("dentro\n");
+            vTaskDelay(1000/portTICK_PERIOD_MS);
             esp_light_sleep_start();
         }
+
     }
 }
 
+TaskHandle_t alacamaHandle = NULL;
 void app_main(void) {
 
+    //xTaskCreate(alacama, "alacama", 4096, NULL, 5, &alacamaHandle);
     #ifdef SPIdebug
     //inicializacion de bus SPI
     spi_bus_config_t buscfg = {
@@ -679,17 +687,42 @@ void app_main(void) {
     ESP_LOGI(TAG, "La hora obtenida del servidor es: %s", strftime_buf);
 
     //curl -v -X POST http://demo.thingsboard.io/api/v1/5XwlQoQhVjWRRVQG4Bo2/telemetry --header Content-Type:application/json --data "{temperature:25}
+    //"http://demo.thingsboard.io/api/v1/VIe067359N1ltcqUpvYz/telemetry"
     esp_mqtt_client_handle_t cliente = mqtt_app_start();
     esp_http_client_config_t config = {
-        .url = "http://demo.thingsboard.io/api/v1/VIe067359N1ltcqUpvYz/telemetry",
+        .url = "http://demo.thingsboard.io/api/v1/VIe067359N1ltcqUpvYz2/telemetry",
         .auth_type = HTTP_AUTH_TYPE_BASIC,
     };
-
     esp_http_client_handle_t client = esp_http_client_init(&config);
     esp_http_client_set_header(client, "Content-Type", "application/json");
     esp_http_client_set_method(client, HTTP_METHOD_POST);
+
+    esp_mqtt_client_handle_t cliente2 = mqtt_app_start();
+    esp_http_client_config_t config2 = {
+        .url = "http://demo.thingsboard.io/api/v1/RAtKyebcD6p10nRKUypU/telemetry",
+        .auth_type = HTTP_AUTH_TYPE_BASIC,
+    };
+    esp_http_client_handle_t client2 = esp_http_client_init(&config2);
+    esp_http_client_set_header(client2, "Content-Type", "application/json");
+    esp_http_client_set_method(client2, HTTP_METHOD_POST);
+    
     uint16_t ALSvalue;
     float MICvalue;
+    int contador = 0;
+    //pines ALS
+    gpio_set_direction(GPIO_NUM_22, GPIO_MODE_OUTPUT);
+    gpio_set_direction(GPIO_NUM_17, GPIO_MODE_OUTPUT);
+    gpio_set_direction(GPIO_NUM_32, GPIO_MODE_OUTPUT);
+    gpio_set_direction(GPIO_NUM_33, GPIO_MODE_OUTPUT);
+    gpio_set_direction(GPIO_NUM_25, GPIO_MODE_OUTPUT);
+    gpio_set_direction(GPIO_NUM_26, GPIO_MODE_OUTPUT);
+    gpio_set_direction(GPIO_NUM_27, GPIO_MODE_OUTPUT);
+    gpio_set_direction(GPIO_NUM_14, GPIO_MODE_OUTPUT);
+
+    //pines MIC
+    gpio_set_direction(GPIO_NUM_21, GPIO_MODE_OUTPUT);
+    gpio_set_direction(GPIO_NUM_2, GPIO_MODE_OUTPUT);
+    gpio_set_direction(GPIO_NUM_23, GPIO_MODE_OUTPUT);
     
     while(1) {
 
@@ -697,31 +730,147 @@ void app_main(void) {
         // Crear json que se quiere enviar al ThingsBoard
         cJSON *root = cJSON_CreateObject();
 
-        #ifdef SPIdebug
-        alacama();
         ALSvalue = medidaALS(spiALS);
         MICvalue = medidaMic(spiMIC);
-
-        
+        switch (ALSvalue / 32) {
+            case 0:
+                gpio_set_level(GPIO_NUM_22, 1);
+                gpio_set_level(GPIO_NUM_17, 0);
+                gpio_set_level(GPIO_NUM_32, 0);
+                gpio_set_level(GPIO_NUM_33, 0);
+                gpio_set_level(GPIO_NUM_25, 0);
+                gpio_set_level(GPIO_NUM_26, 0);
+                gpio_set_level(GPIO_NUM_27, 0);
+                gpio_set_level(GPIO_NUM_14, 0);
+                break;
+            case 1:
+                gpio_set_level(GPIO_NUM_22, 1);
+                gpio_set_level(GPIO_NUM_17, 1);
+                gpio_set_level(GPIO_NUM_32, 0);
+                gpio_set_level(GPIO_NUM_33, 0);
+                gpio_set_level(GPIO_NUM_25, 0);
+                gpio_set_level(GPIO_NUM_26, 0);
+                gpio_set_level(GPIO_NUM_27, 0);
+                gpio_set_level(GPIO_NUM_14, 0);
+                break;
+            case 2:
+                gpio_set_level(GPIO_NUM_22, 1);
+                gpio_set_level(GPIO_NUM_17, 1);
+                gpio_set_level(GPIO_NUM_32, 1);
+                gpio_set_level(GPIO_NUM_33, 0);
+                gpio_set_level(GPIO_NUM_25, 0);
+                gpio_set_level(GPIO_NUM_26, 0);
+                gpio_set_level(GPIO_NUM_27, 0);
+                gpio_set_level(GPIO_NUM_14, 0);
+                break;
+            case 3:
+                gpio_set_level(GPIO_NUM_22, 1);
+                gpio_set_level(GPIO_NUM_17, 1);
+                gpio_set_level(GPIO_NUM_32, 1);
+                gpio_set_level(GPIO_NUM_33, 1);
+                gpio_set_level(GPIO_NUM_25, 0);
+                gpio_set_level(GPIO_NUM_26, 0);
+                gpio_set_level(GPIO_NUM_27, 0);
+                gpio_set_level(GPIO_NUM_14, 0);
+                break;
+            case 4:
+                gpio_set_level(GPIO_NUM_22, 1);
+                gpio_set_level(GPIO_NUM_17, 1);
+                gpio_set_level(GPIO_NUM_32, 1);
+                gpio_set_level(GPIO_NUM_33, 1);
+                gpio_set_level(GPIO_NUM_25, 1);
+                gpio_set_level(GPIO_NUM_26, 0);
+                gpio_set_level(GPIO_NUM_27, 0);
+                gpio_set_level(GPIO_NUM_14, 0);
+                break;
+            case 5:
+                gpio_set_level(GPIO_NUM_22, 1);
+                gpio_set_level(GPIO_NUM_17, 1);
+                gpio_set_level(GPIO_NUM_32, 1);
+                gpio_set_level(GPIO_NUM_33, 1);
+                gpio_set_level(GPIO_NUM_25, 1);
+                gpio_set_level(GPIO_NUM_26, 1);
+                gpio_set_level(GPIO_NUM_27, 0);
+                gpio_set_level(GPIO_NUM_14, 0);
+                break;
+            case 6:
+                gpio_set_level(GPIO_NUM_22, 1);
+                gpio_set_level(GPIO_NUM_17, 1);
+                gpio_set_level(GPIO_NUM_32, 1);
+                gpio_set_level(GPIO_NUM_33, 1);
+                gpio_set_level(GPIO_NUM_25, 1);
+                gpio_set_level(GPIO_NUM_26, 1);
+                gpio_set_level(GPIO_NUM_27, 1);
+                gpio_set_level(GPIO_NUM_14, 0);
+                break;
+            case 7:
+                gpio_set_level(GPIO_NUM_22, 1);
+                gpio_set_level(GPIO_NUM_17, 1);
+                gpio_set_level(GPIO_NUM_32, 1);
+                gpio_set_level(GPIO_NUM_33, 1);
+                gpio_set_level(GPIO_NUM_25, 1);
+                gpio_set_level(GPIO_NUM_26, 1);
+                gpio_set_level(GPIO_NUM_27, 1);
+                gpio_set_level(GPIO_NUM_14, 1);
+                break;
+        }
+        if(MICvalue <= 65.0) {
+            gpio_set_level(GPIO_NUM_21, 1);
+            gpio_set_level(GPIO_NUM_2, 0);
+            gpio_set_level(GPIO_NUM_23, 0);
+        }else if(MICvalue <= 85.0) {
+            gpio_set_level(GPIO_NUM_21, 1);
+            gpio_set_level(GPIO_NUM_2, 1);
+            gpio_set_level(GPIO_NUM_23, 0);
+        }else if (MICvalue > 85.0) {
+            gpio_set_level(GPIO_NUM_21, 1);
+            gpio_set_level(GPIO_NUM_2, 1);
+            gpio_set_level(GPIO_NUM_23, 1);
+        }
+        vTaskDelay(10/ portTICK_PERIOD_MS);
         printf("ALS Value: %u MIC dB: %f \n", ALSvalue, MICvalue);
 
 
         cJSON_AddNumberToObject(root, "ALS", ALSvalue); // En la telemetría de Thingsboard aparecerá key = key y value = 0.336
         cJSON_AddNumberToObject(root, "MIC", MICvalue);
 
-        #endif
 
         char *post_data = cJSON_PrintUnformatted(root);
 
+        time_t tiempoDormir;
+        struct tm horaActual;
+        int duracionSleep;
+        int horasDormir = 10;
+        struct tm horaDormir; //configuracion de hora de dormir
+        horaDormir.tm_hour = 21;
+        horaDormir.tm_min = 20;
         // Enviar los datos
-        esp_mqtt_client_publish(cliente, "v1/devices/me/telemetry", post_data, 0, 1, 0); // v1/devices/me/telemetry sale de la MQTT Device API Reference de ThingsBoard
+        //esp_mqtt_client_publish(cliente, "v1/devices/me/telemetry", post_data, 0, 1, 0); // v1/devices/me/telemetry sale de la MQTT Device API Reference de ThingsBoard
+        esp_mqtt_client_publish(cliente2, "v1/devices/me/telemetry", post_data, 0, 1, 0); // v1/devices/me/telemetry sale de la MQTT Device API Reference de ThingsBoard
+
         //vTaskDelay(1000/ portTICK_PERIOD_MS);
-        esp_http_client_set_post_field(client, post_data, strlen(post_data));
-        esp_http_client_perform(client);
+        //esp_http_client_set_post_field(client, post_data, strlen(post_data));
+        //esp_http_client_perform(client);
+        esp_http_client_set_post_field(client2, post_data, strlen(post_data));
+        esp_http_client_perform(client2);
 
         cJSON_Delete(root);
         // Free is intentional, it's client responsibility to free the result of cJSON_Print
         free(post_data);
+        contador++;
+        if(contador == 50) {
+            //para no comprobar la hora todo el rato
+            time(&now);
+            localtime_r(&now, &horaActual);
+            ESP_LOGI(TAG, "Hora actual: %s", asctime(&horaActual));
+            contador = 0;
+            if(horaDormir.tm_hour <= horaActual.tm_hour && horaDormir.tm_min <= horaActual.tm_min){ //si se ha pasado la hora
+                duracionSleep = horasDormir;// * 3600;
+                esp_sleep_enable_timer_wakeup(1000000 * duracionSleep);
+                esp_deep_sleep_start();
+                printf("wenos dias\n");
+            }
+        }
         //vTaskDelay(50/ portTICK_PERIOD_MS);
         //cleanup si se sale del bucle
     }
