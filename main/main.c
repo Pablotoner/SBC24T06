@@ -96,79 +96,7 @@ static const char *TAG_MQTT = "MQTT";
 static int s_retry_num = 0;
 static EventGroupHandle_t s_wifi_event_group;
 
-static void log_error_if_nonzero(const char *message, int error_code)
-{
-    if (error_code != 0) {
-        ESP_LOGE(TAG_MQTT, "Last error %s: 0x%x", message, error_code);
-    }
-}
-static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
-{
-    ESP_LOGD(TAG_MQTT, "Event dispatched from event loop base=%s, event_id=%" PRIi32 "", base, event_id);
-    esp_mqtt_event_handle_t event = event_data;
-    esp_mqtt_client_handle_t client = event->client;
-    int msg_id;
-    switch ((esp_mqtt_event_id_t)event_id) {
-    case MQTT_EVENT_CONNECTED:
-        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_CONNECTED");
-        msg_id = esp_mqtt_client_publish(client, "/topic/qos1", "data_3", 0, 1, 0);
-        ESP_LOGI(TAG_MQTT, "sent publish successful, msg_id=%d", msg_id);
 
-        msg_id = esp_mqtt_client_subscribe(client, "/topic/qos0", 0);
-        ESP_LOGI(TAG_MQTT, "sent subscribe successful, msg_id=%d", msg_id);
-
-        msg_id = esp_mqtt_client_subscribe(client, "/topic/qos1", 1);
-        ESP_LOGI(TAG_MQTT, "sent subscribe successful, msg_id=%d", msg_id);
-
-        msg_id = esp_mqtt_client_unsubscribe(client, "/topic/qos1");
-        ESP_LOGI(TAG_MQTT, "sent unsubscribe successful, msg_id=%d", msg_id);
-        break;
-    case MQTT_EVENT_DISCONNECTED:
-        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_DISCONNECTED");
-        break;
-
-    case MQTT_EVENT_SUBSCRIBED:
-        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
-        msg_id = esp_mqtt_client_publish(client, "/topic/qos0", "data", 0, 0, 0);
-        ESP_LOGI(TAG_MQTT, "sent publish successful, msg_id=%d", msg_id);
-        break;
-    case MQTT_EVENT_UNSUBSCRIBED:
-        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
-        break;
-    case MQTT_EVENT_PUBLISHED:
-        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
-        break;
-    case MQTT_EVENT_DATA:
-        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_DATA");
-        printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
-        printf("DATA=%.*s\r\n", event->data_len, event->data);
-        break;
-    case MQTT_EVENT_ERROR:
-        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_ERROR");
-        if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
-            log_error_if_nonzero("reported from esp-tls", event->error_handle->esp_tls_last_esp_err);
-            log_error_if_nonzero("reported from tls stack", event->error_handle->esp_tls_stack_err);
-            log_error_if_nonzero("captured as transport's socket errno",  event->error_handle->esp_transport_sock_errno);
-            ESP_LOGI(TAG_MQTT, "Last errno string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
-
-        }
-        break;
-    default:
-        ESP_LOGI(TAG_MQTT, "Other event id:%d", event->event_id);
-        break;
-    }
-}
-
-esp_mqtt_client_handle_t mqtt_app_start(esp_mqtt_client_config_t mqtt_cfg){
-    // Establecer la conexión
-    esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
-    esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, client);
-    if(esp_mqtt_client_start(client) == ESP_OK) {
-        return client;
-    }else{
-        return NULL;
-    }
-}
 
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
                                int32_t event_id, void *event_data)
@@ -499,6 +427,92 @@ uint16_t medidaALS (spi_device_handle_t spiALS) {
     return als_value;
 }
 
+static void log_error_if_nonzero(const char *message, int error_code)
+{
+    if (error_code != 0) {
+        ESP_LOGE(TAG, "Last error %s: 0x%x", message, error_code);
+    }
+}
+
+/*
+ * @brief Event handler registered to receive MQTT events
+ *
+ *  This function is called by the MQTT client event loop.
+ *
+ * @param handler_args user data registered to the event.
+ * @param base Event base for the handler(always MQTT Base in this example).
+ * @param event_id The id for the received event.
+ * @param event_data The data for the event, esp_mqtt_event_handle_t.
+ */
+static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
+{
+    ESP_LOGD(TAG, "Event dispatched from event loop base=%s, event_id=%" PRIi32 "", base, event_id);
+    esp_mqtt_event_handle_t event = event_data;
+    esp_mqtt_client_handle_t client = event->client;
+    int msg_id;
+    switch ((esp_mqtt_event_id_t)event_id) {
+    case MQTT_EVENT_CONNECTED:
+        ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
+        msg_id = esp_mqtt_client_publish(client, "/topic/qos1", "data_3", 0, 1, 0);
+        ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
+
+        msg_id = esp_mqtt_client_subscribe(client, "/topic/qos0", 0);
+        ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
+
+        msg_id = esp_mqtt_client_subscribe(client, "/topic/qos1", 1);
+        ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
+
+        msg_id = esp_mqtt_client_unsubscribe(client, "/topic/qos1");
+        ESP_LOGI(TAG, "sent unsubscribe successful, msg_id=%d", msg_id);
+        break;
+    case MQTT_EVENT_DISCONNECTED:
+        ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
+        break;
+
+    case MQTT_EVENT_SUBSCRIBED:
+        ESP_LOGI(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
+        msg_id = esp_mqtt_client_publish(client, "/topic/qos0", "data", 0, 0, 0);
+        ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
+        break;
+    case MQTT_EVENT_UNSUBSCRIBED:
+        ESP_LOGI(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
+        break;
+    case MQTT_EVENT_PUBLISHED:
+        ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
+        break;
+    case MQTT_EVENT_DATA:
+        ESP_LOGI(TAG, "MQTT_EVENT_DATA");
+        printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
+        printf("DATA=%.*s\r\n", event->data_len, event->data);
+        break;
+    case MQTT_EVENT_ERROR:
+        ESP_LOGI(TAG, "MQTT_EVENT_ERROR");
+        if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
+            log_error_if_nonzero("reported from esp-tls", event->error_handle->esp_tls_last_esp_err);
+            log_error_if_nonzero("reported from tls stack", event->error_handle->esp_tls_stack_err);
+            log_error_if_nonzero("captured as transport's socket errno",  event->error_handle->esp_transport_sock_errno);
+            ESP_LOGI(TAG, "Last errno string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
+
+        }
+        break;
+    default:
+        ESP_LOGI(TAG, "Other event id:%d", event->event_id);
+        break;
+    }
+}
+
+esp_mqtt_client_handle_t mqtt_app_start(esp_mqtt_client_config_t mqtt_cfg) {
+        
+    // Establecer la conexión
+    esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
+    esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, client);
+    if(esp_mqtt_client_start(client) == ESP_OK) {
+        return client;
+    }else{
+        return NULL;
+    }
+}
+
 void app_main(void) {
     //inicializacion de bus SPI
     spi_bus_config_t buscfg = {
@@ -641,7 +655,7 @@ void app_main(void) {
     //curl -v -X POST http://demo.thingsboard.io/api/v1/5XwlQoQhVjWRRVQG4Bo2/telemetry --header Content-Type:application/json --data "{temperature:25}
     //"http://demo.thingsboard.io/api/v1/VIe067359N1ltcqUpvYz/telemetry"matteo 1
     //"http://demo.thingsboard.io/api/v1/RAtKyebcD6p10nRKUypU/telemetry" matteo 2
-    esp_mqtt_client_config_t configMQTT = {
+    /*esp_mqtt_client_config_t configMQTT = {
         .broker.address.uri = "mqtt://demo.thingsboard.io",
         .broker.address.port = 1883,
         .credentials.username = "5XwlQoQhVjWRRVQG4Bo2", //token
@@ -653,7 +667,8 @@ void app_main(void) {
     };
     esp_http_client_handle_t clienteHTTP = esp_http_client_init(&configHTTP);
     esp_http_client_set_header(clienteHTTP, "Content-Type", "application/json");
-    esp_http_client_set_method(clienteHTTP, HTTP_METHOD_POST);
+    esp_http_client_set_method(clienteHTTP, HTTP_METHOD_POST);*/
+
 
     uint16_t ALSvalue;
     float MICvalue;
@@ -672,7 +687,18 @@ void app_main(void) {
     gpio_set_direction(GPIO_NUM_21, GPIO_MODE_OUTPUT);
     gpio_set_direction(GPIO_NUM_2, GPIO_MODE_OUTPUT);
     gpio_set_direction(GPIO_NUM_23, GPIO_MODE_OUTPUT);
-    
+    esp_mqtt_client_config_t mqttCfg1 = {
+        .broker.address.uri = "mqtt://demo.thingsboard.io",
+        .broker.address.port = 1883,
+        .credentials.username = "5XwlQoQhVjWRRVQG4Bo2", //token
+    };
+    esp_mqtt_client_config_t mqttCfg2 = {
+        .broker.address.uri = "mqtt://demo.thingsboard.io",
+        .broker.address.port = 1883,
+        .credentials.username = "9qtte8ah0hsbmiucfchn", //token
+    };
+    esp_mqtt_client_handle_t cliente1 = mqtt_app_start(mqttCfg1);
+    esp_mqtt_client_handle_t cliente2 = mqtt_app_start(mqttCfg2);
     while(1) {
 
         //hacer medidas
@@ -783,10 +809,13 @@ void app_main(void) {
         char *post_data = cJSON_PrintUnformatted(root);
 
         // Enviar los datos
-        esp_mqtt_client_publish(clienteMQTT, "v1/devices/me/telemetry", post_data, 0, 1, 0); // v1/devices/me/telemetry sale de la MQTT Device API Reference de ThingsBoard
+        /*esp_mqtt_client_publish(clienteMQTT, "v1/devices/me/telemetry", post_data, 0, 1, 0); // v1/devices/me/telemetry sale de la MQTT Device API Reference de ThingsBoard
         esp_http_client_set_post_field(clienteHTTP, post_data, strlen(post_data));
-        esp_http_client_perform(clienteHTTP);
-
+        esp_http_client_perform(clienteHTTP);*/
+        esp_mqtt_client_publish(cliente1, "v1/devices/me/telemetry", post_data, 0, 1, 0); // v1/devices/me/telemetry sale de la MQTT Device API Reference de ThingsBoard
+        vTaskDelay(100/portTICK_PERIOD_MS);
+        esp_mqtt_client_publish(cliente2, "v1/devices/me/telemetry", post_data, 0, 1, 0);
+        vTaskDelay(1000/portTICK_PERIOD_MS);
         cJSON_Delete(root);
         // Free is intentional, it's client responsibility to free the result of cJSON_Print
         free(post_data);
