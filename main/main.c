@@ -159,13 +159,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     }
 }
 
-esp_mqtt_client_handle_t mqtt_app_start(void)
-    {
-        esp_mqtt_client_config_t mqtt_cfg = {
-        .broker.address.uri = "mqtt://demo.thingsboard.io",
-        .broker.address.port = 1883,
-        .credentials.username = "5XwlQoQhVjWRRVQG4Bo2", //token
-    };
+esp_mqtt_client_handle_t mqtt_app_start(esp_mqtt_client_config_t mqtt_cfg){
     // Establecer la conexión
     esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
     esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, client);
@@ -505,47 +499,7 @@ uint16_t medidaALS (spi_device_handle_t spiALS) {
     return als_value;
 }
 
-#define SPIdebug
-
-void alacama(void *arg) {
-    // Obtener la hora actual
-    time_t now;
-    struct tm timeinfo;
-    time(&now);
-    localtime_r(&now, &timeinfo);
-    ESP_LOGI(TAG, "Hora actual: %s", asctime(&timeinfo));
-    int64_t time_to_sleep;
-
-    // Configurar la hora para dormir
-    struct tm sleep_timeinfo = timeinfo;
-    sleep_timeinfo.tm_hour = 17;
-    sleep_timeinfo.tm_min = 45;
-    sleep_timeinfo.tm_sec = 0;
-
-    // Convertir la hora configurada a Unix timestamp
-    time_t sleep_time = mktime(&sleep_timeinfo);
-
-    // Calcular el tiempo restante para dormir
-    printf("Antes\n");
-    vTaskDelay(1000/portTICK_PERIOD_MS);
-    esp_sleep_enable_timer_wakeup(1000000 * 10);
-    printf("despues");
-    vTaskDelay(1000/portTICK_PERIOD_MS);
-    while(1) {
-        if (timeinfo.tm_hour >= 18) {
-            printf("dentro\n");
-            vTaskDelay(1000/portTICK_PERIOD_MS);
-            esp_light_sleep_start();
-        }
-
-    }
-}
-
-TaskHandle_t alacamaHandle = NULL;
 void app_main(void) {
-
-    //xTaskCreate(alacama, "alacama", 4096, NULL, 5, &alacamaHandle);
-    #ifdef SPIdebug
     //inicializacion de bus SPI
     spi_bus_config_t buscfg = {
         .mosi_io_num = -1,          // No se usa MOSI
@@ -574,8 +528,6 @@ void app_main(void) {
     spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO);
     spi_bus_add_device(SPI2_HOST, &devcfgALS, &spiALS);
     spi_bus_add_device(SPI2_HOST, &devcfgMIC, &spiMIC);
-
-    #endif
 
     ESP_LOGI(TAG, "[APP] Startup..");
     ESP_LOGI(TAG, "[APP] Free memory: %" PRIu32 " bytes", esp_get_free_heap_size());
@@ -687,25 +639,22 @@ void app_main(void) {
     ESP_LOGI(TAG, "La hora obtenida del servidor es: %s", strftime_buf);
 
     //curl -v -X POST http://demo.thingsboard.io/api/v1/5XwlQoQhVjWRRVQG4Bo2/telemetry --header Content-Type:application/json --data "{temperature:25}
-    //"http://demo.thingsboard.io/api/v1/VIe067359N1ltcqUpvYz/telemetry"
-    esp_mqtt_client_handle_t cliente = mqtt_app_start();
-    esp_http_client_config_t config = {
-        .url = "http://demo.thingsboard.io/api/v1/VIe067359N1ltcqUpvYz2/telemetry",
+    //"http://demo.thingsboard.io/api/v1/VIe067359N1ltcqUpvYz/telemetry"matteo 1
+    //"http://demo.thingsboard.io/api/v1/RAtKyebcD6p10nRKUypU/telemetry" matteo 2
+    esp_mqtt_client_config_t configMQTT = {
+        .broker.address.uri = "mqtt://demo.thingsboard.io",
+        .broker.address.port = 1883,
+        .credentials.username = "5XwlQoQhVjWRRVQG4Bo2", //token
+    };
+    esp_mqtt_client_handle_t clienteMQTT = mqtt_app_start(configMQTT);
+    esp_http_client_config_t configHTTP = {
+        .url = "http://demo.thingsboard.io/api/v1/5XwlQoQhVjWRRVQG4Bo2/telemetry",
         .auth_type = HTTP_AUTH_TYPE_BASIC,
     };
-    esp_http_client_handle_t client = esp_http_client_init(&config);
-    esp_http_client_set_header(client, "Content-Type", "application/json");
-    esp_http_client_set_method(client, HTTP_METHOD_POST);
+    esp_http_client_handle_t clienteHTTP = esp_http_client_init(&configHTTP);
+    esp_http_client_set_header(clienteHTTP, "Content-Type", "application/json");
+    esp_http_client_set_method(clienteHTTP, HTTP_METHOD_POST);
 
-    esp_mqtt_client_handle_t cliente2 = mqtt_app_start();
-    esp_http_client_config_t config2 = {
-        .url = "http://demo.thingsboard.io/api/v1/RAtKyebcD6p10nRKUypU/telemetry",
-        .auth_type = HTTP_AUTH_TYPE_BASIC,
-    };
-    esp_http_client_handle_t client2 = esp_http_client_init(&config2);
-    esp_http_client_set_header(client2, "Content-Type", "application/json");
-    esp_http_client_set_method(client2, HTTP_METHOD_POST);
-    
     uint16_t ALSvalue;
     float MICvalue;
     int contador = 0;
@@ -726,10 +675,7 @@ void app_main(void) {
     
     while(1) {
 
-
-        // Crear json que se quiere enviar al ThingsBoard
-        cJSON *root = cJSON_CreateObject();
-
+        //hacer medidas
         ALSvalue = medidaALS(spiALS);
         MICvalue = medidaMic(spiMIC);
         switch (ALSvalue / 32) {
@@ -827,16 +773,25 @@ void app_main(void) {
             gpio_set_level(GPIO_NUM_2, 1);
             gpio_set_level(GPIO_NUM_23, 1);
         }
-        vTaskDelay(10/ portTICK_PERIOD_MS);
+        //vTaskDelay(10/ portTICK_PERIOD_MS);
         printf("ALS Value: %u MIC dB: %f \n", ALSvalue, MICvalue);
 
-
+        // Crear json que se quiere enviar al ThingsBoard
+        cJSON *root = cJSON_CreateObject();
         cJSON_AddNumberToObject(root, "ALS", ALSvalue); // En la telemetría de Thingsboard aparecerá key = key y value = 0.336
         cJSON_AddNumberToObject(root, "MIC", MICvalue);
-
-
         char *post_data = cJSON_PrintUnformatted(root);
 
+        // Enviar los datos
+        esp_mqtt_client_publish(clienteMQTT, "v1/devices/me/telemetry", post_data, 0, 1, 0); // v1/devices/me/telemetry sale de la MQTT Device API Reference de ThingsBoard
+        esp_http_client_set_post_field(clienteHTTP, post_data, strlen(post_data));
+        esp_http_client_perform(clienteHTTP);
+
+        cJSON_Delete(root);
+        // Free is intentional, it's client responsibility to free the result of cJSON_Print
+        free(post_data);
+
+        //configuracion de hora de dormir y duracion de sueño
         time_t tiempoDormir;
         struct tm horaActual;
         int duracionSleep;
@@ -844,19 +799,7 @@ void app_main(void) {
         struct tm horaDormir; //configuracion de hora de dormir
         horaDormir.tm_hour = 21;
         horaDormir.tm_min = 20;
-        // Enviar los datos
-        //esp_mqtt_client_publish(cliente, "v1/devices/me/telemetry", post_data, 0, 1, 0); // v1/devices/me/telemetry sale de la MQTT Device API Reference de ThingsBoard
-        esp_mqtt_client_publish(cliente2, "v1/devices/me/telemetry", post_data, 0, 1, 0); // v1/devices/me/telemetry sale de la MQTT Device API Reference de ThingsBoard
 
-        //vTaskDelay(1000/ portTICK_PERIOD_MS);
-        //esp_http_client_set_post_field(client, post_data, strlen(post_data));
-        //esp_http_client_perform(client);
-        esp_http_client_set_post_field(client2, post_data, strlen(post_data));
-        esp_http_client_perform(client2);
-
-        cJSON_Delete(root);
-        // Free is intentional, it's client responsibility to free the result of cJSON_Print
-        free(post_data);
         contador++;
         if(contador == 50) {
             //para no comprobar la hora todo el rato
@@ -865,7 +808,7 @@ void app_main(void) {
             ESP_LOGI(TAG, "Hora actual: %s", asctime(&horaActual));
             contador = 0;
             if(horaDormir.tm_hour <= horaActual.tm_hour && horaDormir.tm_min <= horaActual.tm_min){ //si se ha pasado la hora
-                duracionSleep = horasDormir;// * 3600;
+                duracionSleep = horasDormir;// * 3600; //añadir el 3600 para que sean horas
                 esp_sleep_enable_timer_wakeup(1000000 * duracionSleep);
                 esp_deep_sleep_start();
                 printf("wenos dias\n");
