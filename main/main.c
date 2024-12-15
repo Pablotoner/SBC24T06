@@ -54,7 +54,6 @@
 #include "esp_sntp.h"
 #include "esp_sleep.h"
 
-#define TAG "General"
 
 //defines SPI
 #define PIN_NUM_MISO 19
@@ -84,23 +83,21 @@
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT      BIT1
 
-static const char *TAG_AP = "WiFi SoftAP";
-static const char *TAG_STA = "WiFi Sta";
-char parsedssid[32];
-char parsepassword[64];
-char token[64];
-static const char *TAG_SPI = "SPI";
-static const char *TAG_MQTT = "MQTT";
-
 //variables wifi
 static int s_retry_num = 0;
 static EventGroupHandle_t s_wifi_event_group;
+char parsedssid[32];
+char parsepassword[64];
+char token[64];
 
+//Tags
+static const char *TAG_SPI = "SPI";
+static const char *TAG_MQTT = "MQTT";
+static const char *TAG_GENERAL = "General";
+static const char *TAG_AP = "WiFi SoftAP";
+static const char *TAG_STA = "WiFi Sta";
 
-
-static void wifi_event_handler(void *arg, esp_event_base_t event_base,
-                               int32_t event_id, void *event_data)
-{
+static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STACONNECTED) {
         wifi_event_ap_staconnected_t *event = (wifi_event_ap_staconnected_t *) event_data;
         ESP_LOGI(TAG_AP, "Station "MACSTR" joined, AID=%d",
@@ -376,11 +373,11 @@ httpd_handle_t setup_server(void)
     return server;
 }
 
-int64_t xx_time_get_time() {
+/*int64_t xx_time_get_time() {
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
 	return (tv.tv_sec * 1000LL + (tv.tv_usec / 1000LL));
-}
+}*/
 
 float medidaMic (spi_device_handle_t spiMIC) {
     //Lectura MIC
@@ -430,7 +427,7 @@ uint16_t medidaALS (spi_device_handle_t spiALS) {
 static void log_error_if_nonzero(const char *message, int error_code)
 {
     if (error_code != 0) {
-        ESP_LOGE(TAG, "Last error %s: 0x%x", message, error_code);
+        ESP_LOGE(TAG_GENERAL, "Last error %s: 0x%x", message, error_code);
     }
 }
 
@@ -446,57 +443,57 @@ static void log_error_if_nonzero(const char *message, int error_code)
  */
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
-    ESP_LOGD(TAG, "Event dispatched from event loop base=%s, event_id=%" PRIi32 "", base, event_id);
+    ESP_LOGD(TAG_MQTT, "Event dispatched from event loop base=%s, event_id=%" PRIi32 "", base, event_id);
     esp_mqtt_event_handle_t event = event_data;
     esp_mqtt_client_handle_t client = event->client;
     int msg_id;
     switch ((esp_mqtt_event_id_t)event_id) {
     case MQTT_EVENT_CONNECTED:
-        ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
+        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_CONNECTED");
         msg_id = esp_mqtt_client_publish(client, "/topic/qos1", "data_3", 0, 1, 0);
-        ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
+        ESP_LOGI(TAG_MQTT, "sent publish successful, msg_id=%d", msg_id);
 
         msg_id = esp_mqtt_client_subscribe(client, "/topic/qos0", 0);
-        ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
+        ESP_LOGI(TAG_MQTT, "sent subscribe successful, msg_id=%d", msg_id);
 
         msg_id = esp_mqtt_client_subscribe(client, "/topic/qos1", 1);
-        ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
+        ESP_LOGI(TAG_MQTT, "sent subscribe successful, msg_id=%d", msg_id);
 
         msg_id = esp_mqtt_client_unsubscribe(client, "/topic/qos1");
-        ESP_LOGI(TAG, "sent unsubscribe successful, msg_id=%d", msg_id);
+        ESP_LOGI(TAG_MQTT, "sent unsubscribe successful, msg_id=%d", msg_id);
         break;
     case MQTT_EVENT_DISCONNECTED:
-        ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
+        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_DISCONNECTED");
         break;
 
     case MQTT_EVENT_SUBSCRIBED:
-        ESP_LOGI(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
+        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
         msg_id = esp_mqtt_client_publish(client, "/topic/qos0", "data", 0, 0, 0);
-        ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
+        ESP_LOGI(TAG_MQTT, "sent publish successful, msg_id=%d", msg_id);
         break;
     case MQTT_EVENT_UNSUBSCRIBED:
-        ESP_LOGI(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
+        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
         break;
     case MQTT_EVENT_PUBLISHED:
-        ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
+        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
         break;
     case MQTT_EVENT_DATA:
-        ESP_LOGI(TAG, "MQTT_EVENT_DATA");
+        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_DATA");
         printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
         printf("DATA=%.*s\r\n", event->data_len, event->data);
         break;
     case MQTT_EVENT_ERROR:
-        ESP_LOGI(TAG, "MQTT_EVENT_ERROR");
+        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_ERROR");
         if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
             log_error_if_nonzero("reported from esp-tls", event->error_handle->esp_tls_last_esp_err);
             log_error_if_nonzero("reported from tls stack", event->error_handle->esp_tls_stack_err);
             log_error_if_nonzero("captured as transport's socket errno",  event->error_handle->esp_transport_sock_errno);
-            ESP_LOGI(TAG, "Last errno string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
+            ESP_LOGI(TAG_MQTT, "Last errno string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
 
         }
         break;
     default:
-        ESP_LOGI(TAG, "Other event id:%d", event->event_id);
+        ESP_LOGI(TAG_MQTT, "Other event id:%d", event->event_id);
         break;
     }
 }
@@ -543,9 +540,9 @@ void app_main(void) {
     spi_bus_add_device(SPI2_HOST, &devcfgALS, &spiALS);
     spi_bus_add_device(SPI2_HOST, &devcfgMIC, &spiMIC);
 
-    ESP_LOGI(TAG, "[APP] Startup..");
-    ESP_LOGI(TAG, "[APP] Free memory: %" PRIu32 " bytes", esp_get_free_heap_size());
-    ESP_LOGI(TAG, "[APP] IDF version: %s", esp_get_idf_version());
+    ESP_LOGI(TAG_GENERAL, "[APP] Iniciando..");
+    ESP_LOGI(TAG_GENERAL, "[APP] Memoria libre: %" PRIu32 " bytes", esp_get_free_heap_size());
+    ESP_LOGI(TAG_GENERAL, "[APP] Version: %s", esp_get_idf_version());
 
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("mqtt_client", ESP_LOG_VERBOSE);
@@ -583,7 +580,6 @@ void app_main(void) {
     /*Initialize WiFi */
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
 
        /* Initialize AP */
@@ -592,14 +588,13 @@ void app_main(void) {
        /* Initialize STA */
     ESP_LOGI(TAG_STA, "ESP_WIFI_MODE_STA");
     esp_netif_t *esp_netif_sta = wifi_init_sta();
-
+    //iniciar servidor http
     setup_server();
 
-        /* Start WiFi */
+    /* Start WiFi */
     ESP_ERROR_CHECK(esp_wifi_start());
 
-
-         /*
+    /*
      * Wait until either the connection is established (WIFI_CONNECTED_BIT) or
      * connection failed for the maximum number of re-tries (WIFI_FAIL_BIT).
      * The bits are set by event_handler() (see above)
@@ -620,10 +615,9 @@ void app_main(void) {
                  parsedssid, parsepassword);
     } else {
         ESP_LOGE(TAG_STA, "UNEXPECTED EVENT");
-        
     }
 
-        /* Set sta as the default interface */
+    /* Set sta as the default interface */
     esp_netif_set_default_netif(esp_netif_sta);
 
     if (esp_netif_napt_enable(esp_netif_ap) != ESP_OK) {
@@ -641,7 +635,7 @@ void app_main(void) {
     tzset();  // Aplica el cambio de zona horaria
 
     while (esp_netif_sntp_sync_wait(2000 / portTICK_PERIOD_MS) == ESP_ERR_TIMEOUT && ++retry < retry_count) {
-        ESP_LOGI(TAG, "Intentando sincronizar hora... (%d/%d)", retry, retry_count);
+        ESP_LOGI("Sync NTP", "Intentando sincronizar hora... (%d/%d)", retry, retry_count);
     }
 
     char strftime_buf[64];
@@ -650,25 +644,7 @@ void app_main(void) {
     time(&now);
     localtime_r(&now, &timeinfo);
     strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
-    ESP_LOGI(TAG, "La hora obtenida del servidor es: %s", strftime_buf);
-
-    //curl -v -X POST http://demo.thingsboard.io/api/v1/5XwlQoQhVjWRRVQG4Bo2/telemetry --header Content-Type:application/json --data "{temperature:25}
-    //"http://demo.thingsboard.io/api/v1/VIe067359N1ltcqUpvYz/telemetry"matteo 1
-    //"http://demo.thingsboard.io/api/v1/RAtKyebcD6p10nRKUypU/telemetry" matteo 2
-    /*esp_mqtt_client_config_t configMQTT = {
-        .broker.address.uri = "mqtt://demo.thingsboard.io",
-        .broker.address.port = 1883,
-        .credentials.username = "5XwlQoQhVjWRRVQG4Bo2", //token
-    };
-    esp_mqtt_client_handle_t clienteMQTT = mqtt_app_start(configMQTT);
-    esp_http_client_config_t configHTTP = {
-        .url = "http://demo.thingsboard.io/api/v1/5XwlQoQhVjWRRVQG4Bo2/telemetry",
-        .auth_type = HTTP_AUTH_TYPE_BASIC,
-    };
-    esp_http_client_handle_t clienteHTTP = esp_http_client_init(&configHTTP);
-    esp_http_client_set_header(clienteHTTP, "Content-Type", "application/json");
-    esp_http_client_set_method(clienteHTTP, HTTP_METHOD_POST);*/
-
+    ESP_LOGI("Sync NTP", "La hora obtenida del servidor es: %s", strftime_buf);
 
     uint16_t ALSvalue;
     float MICvalue;
@@ -687,23 +663,28 @@ void app_main(void) {
     gpio_set_direction(GPIO_NUM_21, GPIO_MODE_OUTPUT);
     gpio_set_direction(GPIO_NUM_2, GPIO_MODE_OUTPUT);
     gpio_set_direction(GPIO_NUM_23, GPIO_MODE_OUTPUT);
+
+    //configuraciones MQTT, 1 por disp., cambiar solo token
     esp_mqtt_client_config_t mqttCfg1 = {
         .broker.address.uri = "mqtt://demo.thingsboard.io",
         .broker.address.port = 1883,
-        .credentials.username = "5XwlQoQhVjWRRVQG4Bo2", //token
+        .credentials.username = "VIe067359N1ltcqUpvYz", //token
     };
     esp_mqtt_client_config_t mqttCfg2 = {
         .broker.address.uri = "mqtt://demo.thingsboard.io",
         .broker.address.port = 1883,
-        .credentials.username = "9qtte8ah0hsbmiucfchn", //token
+        .credentials.username = "RAtKyebcD6p10nRKUypU", //token
     };
     esp_mqtt_client_handle_t cliente1 = mqtt_app_start(mqttCfg1);
     esp_mqtt_client_handle_t cliente2 = mqtt_app_start(mqttCfg2);
-    while(1) {
 
+    //bucle principal
+    while(1) {
         //hacer medidas
         ALSvalue = medidaALS(spiALS);
         MICvalue = medidaMic(spiMIC);
+        
+        //encender leds ALS
         switch (ALSvalue / 32) {
             case 0:
                 gpio_set_level(GPIO_NUM_22, 1);
@@ -786,6 +767,8 @@ void app_main(void) {
                 gpio_set_level(GPIO_NUM_14, 1);
                 break;
         }
+        
+        //encender leds MIC
         if(MICvalue <= 65.0) {
             gpio_set_level(GPIO_NUM_21, 1);
             gpio_set_level(GPIO_NUM_2, 0);
@@ -799,7 +782,7 @@ void app_main(void) {
             gpio_set_level(GPIO_NUM_2, 1);
             gpio_set_level(GPIO_NUM_23, 1);
         }
-        //vTaskDelay(10/ portTICK_PERIOD_MS);
+
         printf("ALS Value: %u MIC dB: %f \n", ALSvalue, MICvalue);
 
         // Crear json que se quiere enviar al ThingsBoard
@@ -809,38 +792,35 @@ void app_main(void) {
         char *post_data = cJSON_PrintUnformatted(root);
 
         // Enviar los datos
-        /*esp_mqtt_client_publish(clienteMQTT, "v1/devices/me/telemetry", post_data, 0, 1, 0); // v1/devices/me/telemetry sale de la MQTT Device API Reference de ThingsBoard
-        esp_http_client_set_post_field(clienteHTTP, post_data, strlen(post_data));
-        esp_http_client_perform(clienteHTTP);*/
         esp_mqtt_client_publish(cliente1, "v1/devices/me/telemetry", post_data, 0, 1, 0); // v1/devices/me/telemetry sale de la MQTT Device API Reference de ThingsBoard
         vTaskDelay(100/portTICK_PERIOD_MS);
+        /*envia el mismo dato a los 2 dispositivos para probar que los 2 reciben en thingsboard
+          no sería necesario en un despliegue real ya que cada dispositivo enviará solo a 1*/
         esp_mqtt_client_publish(cliente2, "v1/devices/me/telemetry", post_data, 0, 1, 0);
-        vTaskDelay(1000/portTICK_PERIOD_MS);
+        vTaskDelay(500/portTICK_PERIOD_MS); //delay para dejar tiempo a que lleguen los MQTT
         cJSON_Delete(root);
-        // Free is intentional, it's client responsibility to free the result of cJSON_Print
         free(post_data);
 
         //configuracion de hora de dormir y duracion de sueño
-        time_t tiempoDormir;
         struct tm horaActual;
         int duracionSleep;
-        int horasDormir = 10;
-        struct tm horaDormir; //configuracion de hora de dormir
-        horaDormir.tm_hour = 21;
-        horaDormir.tm_min = 20;
+        int horasDormir = 12;
+        struct tm horaDormir;
+        horaDormir.tm_hour = 17;
+        horaDormir.tm_min = 15;
 
         contador++;
-        if(contador == 50) {
-            //para no comprobar la hora todo el rato
+        if(contador == 600) {
+            //para no comprobar la hora todo el rato, cada 10 mins aprox
             time(&now);
             localtime_r(&now, &horaActual);
-            ESP_LOGI(TAG, "Hora actual: %s", asctime(&horaActual));
+            ESP_LOGI(TAG_GENERAL, "Hora actual: %s", asctime(&horaActual));
             contador = 0;
             if(horaDormir.tm_hour <= horaActual.tm_hour && horaDormir.tm_min <= horaActual.tm_min){ //si se ha pasado la hora
-                duracionSleep = horasDormir;// * 3600; //añadir el 3600 para que sean horas
+                duracionSleep = horasDormir;// * 3600; //añadir el 3600 para que sean horas, quitado para demostracion
                 esp_sleep_enable_timer_wakeup(1000000 * duracionSleep);
+                ESP_LOGI(TAG_GENERAL, "Entrando en Deep Sleep durante %d horas...", duracionSleep);
                 esp_deep_sleep_start();
-                printf("wenos dias\n");
             }
         }
         //vTaskDelay(50/ portTICK_PERIOD_MS);
