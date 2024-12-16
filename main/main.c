@@ -797,7 +797,7 @@ void app_main(void) {
         /*envia el mismo dato a los 2 dispositivos para probar que los 2 reciben en thingsboard
           no sería necesario en un despliegue real ya que cada dispositivo enviará solo a 1*/
         esp_mqtt_client_publish(cliente2, "v1/devices/me/telemetry", post_data, 0, 1, 0);
-        vTaskDelay(500/portTICK_PERIOD_MS); //delay para dejar tiempo a que lleguen los MQTT
+        vTaskDelay(750/portTICK_PERIOD_MS); //delay para dejar tiempo a que lleguen los MQTT
         cJSON_Delete(root);
         free(post_data);
 
