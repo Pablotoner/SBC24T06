@@ -804,10 +804,10 @@ void app_main(void) {
         //configuracion de hora de dormir y duracion de sueño
         struct tm horaActual;
         int duracionSleep;
-        int horasDormir = 12;
+        int horasDormir = 9;
         struct tm horaDormir;
-        horaDormir.tm_hour = 17;
-        horaDormir.tm_min = 15;
+        horaDormir.tm_hour = 21;
+        horaDormir.tm_min = 30;
 
         contador++;
         if(contador == 600) {
@@ -817,7 +817,7 @@ void app_main(void) {
             ESP_LOGI(TAG_GENERAL, "Hora actual: %s", asctime(&horaActual));
             contador = 0;
             if(horaDormir.tm_hour <= horaActual.tm_hour && horaDormir.tm_min <= horaActual.tm_min){ //si se ha pasado la hora
-                duracionSleep = horasDormir;// * 3600; //añadir el 3600 para que sean horas, quitado para demostracion
+                duracionSleep = horasDormir * 3600; //quitar el 3600 para que sean segundos, quitado para demostracion
                 esp_sleep_enable_timer_wakeup(1000000 * duracionSleep);
                 ESP_LOGI(TAG_GENERAL, "Entrando en Deep Sleep durante %d horas...", duracionSleep);
                 esp_deep_sleep_start();
