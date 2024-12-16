@@ -387,13 +387,10 @@ float medidaMic (spi_device_handle_t spiMIC) {
     float RMS;
     uint8_t dataMic[2];
     uint16_t mic_vol;
-
     spi_transaction_t u = {
         .length = 16,           // Lectura de 16 bits
         .rx_buffer = dataMic
     };
-    
-    //printf("Antes de medir %lld\n", xx_time_get_time());
     for(int j = 0; j < freq; j++) {
         spi_device_transmit(spiMIC, &u);  // Realiza la transacción
         mic_vol = ((uint16_t)dataMic[0] << 8 | (uint16_t)dataMic[1] );
@@ -406,10 +403,8 @@ float medidaMic (spi_device_handle_t spiMIC) {
     //Hacer RMS
     RMS = sqrt(sumaRMS/ freq);
     decibelios = (20 * log10f(RMS/2047)) + 94; //+94 por ser el valor de referencia de mediciones de sonido
-
     return decibelios;
 }
-
 uint16_t medidaALS (spi_device_handle_t spiALS) {
     uint8_t data[2];
     uint16_t als_value;
@@ -417,7 +412,6 @@ uint16_t medidaALS (spi_device_handle_t spiALS) {
             .length = 16,           // Lectura de 16 bits
             .rx_buffer = data
     };
-
     //Lectura ALS
     spi_device_transmit(spiALS, &t);  // Realiza la transacción
     als_value = (((data[0] << 8) | data[1]) >> 4);  // Valor de luz
@@ -803,24 +797,25 @@ void app_main(void) {
 
         //configuracion de hora de dormir y duracion de sueño
         struct tm horaActual;
-        int duracionSleep;
+        uint duracionSleep;
         int horasDormir = 9;
         struct tm horaDormir;
         horaDormir.tm_hour = 21;
         horaDormir.tm_min = 30;
 
         contador++;
-        if(contador == 600) {
+        if(contador == 10) {
             //para no comprobar la hora todo el rato, cada 10 mins aprox
             time(&now);
             localtime_r(&now, &horaActual);
             ESP_LOGI(TAG_GENERAL, "Hora actual: %s", asctime(&horaActual));
             contador = 0;
-            if(horaDormir.tm_hour <= horaActual.tm_hour && horaDormir.tm_min <= horaActual.tm_min){ //si se ha pasado la hora
-                duracionSleep = horasDormir * 3600; //quitar el 3600 para que sean segundos, quitado para demostracion
-                esp_sleep_enable_timer_wakeup(1000000 * duracionSleep);
-                ESP_LOGI(TAG_GENERAL, "Entrando en Deep Sleep durante %d horas...", duracionSleep);
-                esp_deep_sleep_start();
+            if(horaDormir.tm_hour <= horaActual.tm_hour){ //si se ha pasado la hora
+                duracionSleep = horasDormir * 3600 *1000000; //quitar el 3600 para que sean segundos, quitado para demostracion
+                if(esp_sleep_enable_timer_wakeup(duracionSleep) == ESP_OK) {
+                    ESP_LOGI(TAG_GENERAL, "Entrando en Deep Sleep durante %u segundos...", duracionSleep);
+                    esp_deep_sleep_start();
+                }
             }
         }
         //vTaskDelay(50/ portTICK_PERIOD_MS);
